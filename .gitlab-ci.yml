@@ -1,0 +1,41 @@
+image: maven:3.6.0-jdk-11
+
+cache:
+  paths:
+    - .m2
+  key: "$CI_BUILD_REF_NAME"
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=.m2"
+
+stages:
+  - build
+  - unit-test
+  - integration-test
+#  - deploy
+
+build:
+  stage: build
+  script:
+    - git clone https://gitlab.com/proticity/cloud/java-next-pom.git
+    - cd java-next-pom
+    - mvn install -Dmaven.repo.local=../.m2
+    - cd ..
+    - mvn compile
+
+unit-test:
+  stage: unit-test
+  script:
+    - mvn test
+
+integration-test:
+  stage: integration-test
+  script:
+    - mvn integration-test -DskipTests
+
+#deploy:
+#  stage: deploy
+#  script:
+#    - mvn deploy
+#  only:
+#    - master
