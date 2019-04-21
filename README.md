@@ -16,7 +16,7 @@ Maven:
 ```xml
 <dependencies>
     <dependency>
-        <groupId>com.proticity.irc</groupId>
+        <groupId>org.proticity</groupId>
         <artifactId>reactive-irc-client</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </dependency>

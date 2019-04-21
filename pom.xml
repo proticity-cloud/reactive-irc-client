@@ -1,11 +1,10 @@
 <project>
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.proticity</groupId>
+        <groupId>org.proticity</groupId>
         <artifactId>java-next-pom</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
-    <groupId>com.proticity.irc</groupId>
     <artifactId>reactive-irc-client</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 
