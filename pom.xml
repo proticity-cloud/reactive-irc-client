@@ -2,16 +2,13 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.proticity</groupId>
-        <artifactId>java-next-pom</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <artifactId>proticity-parent-pom</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
     </parent>
     <artifactId>reactive-irc-client</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-
-    <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
-    </properties>
+    <version>0.1.0-SNAPSHOT</version>
+    <name>Reactive IRC Client</name>
+    <description>A reactive streams API for high-performance interaction with IRC servers.</description>
 
     <scm>
         <url>https://gitlab.com/proticity/cloud/reactive-irc-client</url>
@@ -39,6 +36,10 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer</artifactId>
         </dependency>
 
         <dependency>

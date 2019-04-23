@@ -6,36 +6,34 @@ cache:
   key: "$CI_BUILD_REF_NAME"
 
 variables:
-  MAVEN_OPTS: "-Dmaven.repo.local=.m2"
+  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
 
 stages:
   - build
   - unit-test
   - integration-test
-#  - deploy
+  - deploy
 
 build:
   stage: build
   script:
-    - git clone https://gitlab.com/proticity/cloud/java-next-pom.git
-    - cd java-next-pom
-    - mvn install -Dmaven.repo.local=../.m2
-    - cd ..
-    - mvn compile
+    - mvn -B -s .m2/settings.xml compile
 
 unit-test:
   stage: unit-test
   script:
-    - mvn test
+    - mvn -B -s .m2/settings.xml test
 
 integration-test:
   stage: integration-test
   script:
-    - mvn integration-test -DskipTests
+    - mvn -B -s .m2/settings.xml integration-test -DskipTests
 
-#deploy:
-#  stage: deploy
-#  script:
-#    - mvn deploy
-#  only:
-#    - master
+deploy:
+  stage: deploy
+  script:
+    - gpg --batch --yes --import-ownertrust <(echo "$MAVEN_GPG_OWNERTRUST")
+    - gpg --armor --batch --yes --import --allow-secret-key-import <(echo "$MAVEN_GPG_KEY")
+    - mvn -B -s .m2/settings.xml deploy
+  only:
+    - master
