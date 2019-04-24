@@ -18,7 +18,7 @@ Maven:
     <dependency>
         <groupId>org.proticity</groupId>
         <artifactId>reactive-irc-client</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>0.1.0-SNAPSHOT</version>
     </dependency>
 </dependencies>
 ```
@@ -26,7 +26,38 @@ Maven:
 Gradle:
 ```groovy
 dependencies {
-    implementation 'com.proticity.irc:reactive-irc-client:1.0.0-SNAPSHOT'
+    implementation 'com.proticity.irc:reactive-irc-client:0.1.0-SNAPSHOT'
+}
+```
+
+### Snapshot Releases
+To use the snapshot releases of the POM you will need to add the snapshot repository.
+
+Maven:
+```xml
+<project>
+    <repositories>
+        <repository>
+            <id>oss-snapshots</id>
+            <name>Sonatype OSS Snapshots</name>
+            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+</project>
+```
+
+Gradle:
+```groovy
+repositories {
+    maven {
+        url 'https://oss.sonatype.org/content/groups/public'
+        mavenContent {
+            snapshotsOnly()
+        }
+    }
 }
 ```
 
