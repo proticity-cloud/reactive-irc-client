@@ -34,6 +34,6 @@ deploy:
   script:
     - gpg --batch --yes --import-ownertrust <(echo "$MAVEN_GPG_OWNERTRUST")
     - gpg --armor --batch --yes --import --allow-secret-key-import <(echo "$MAVEN_GPG_KEY")
-    - mvn -B -s .m2/settings.xml deploy
+    - mvn -B -s .m2/settings.xml deploy -DskipTests -DskipITs
   only:
     - master
