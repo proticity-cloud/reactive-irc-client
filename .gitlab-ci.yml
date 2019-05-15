@@ -1,39 +1,49 @@
-image: maven:3.6.0-jdk-11
+image: adoptopenjdk/openjdk11:alpine-slim
+
+variables:
+  DOCKER_DRIVER: overlay2
+
+before_script:
+  - export GRADLE_USER_HOME=`pwd`/.gradle
 
 cache:
   paths:
-    - .m2
-  key: "$CI_BUILD_REF_NAME"
-
-variables:
-  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
+    - .gradle
 
 stages:
   - build
-  - unit-test
-  - integration-test
   - deploy
 
 build:
   stage: build
   script:
-    - mvn -B -s .m2/settings.xml compile
+    - ./gradlew --no-daemon -i -S sonarqube spotbugsMain -Dsonar.branch.name=${CI_COMMIT_REF_NAME}
+  artifacts:
+    paths:
+      - build/libs
+    reports:
+      junit: [ build/test-results/test/*.xml, build/test-results/integrationTest/*.xml ]
+  except:
+    - master
 
-unit-test:
-  stage: unit-test
-  script:
-    - mvn -B -s .m2/settings.xml test
-
-integration-test:
-  stage: integration-test
-  script:
-    - mvn -B -s .m2/settings.xml integration-test -DskipTests
-
-deploy:
+pages:
   stage: deploy
   script:
-    - gpg --batch --yes --import-ownertrust <(echo "$MAVEN_GPG_OWNERTRUST")
-    - gpg --armor --batch --yes --import --allow-secret-key-import <(echo "$MAVEN_GPG_KEY")
-    - mvn -B -s .m2/settings.xml deploy -DskipTests -DskipITs
+    - ./gradlew --no-daemon -i -S checkstyleMain spotbugsMain sonarqube sourceXref publish -Dsonar.branch.name=${CI_COMMIT_REF_NAME}
+    - mkdir public
+    - mv build/docs/javadoc public/apidocs
+    - mv build/docs/source-xref public/source
+    - mv build/reports/jacoco/jacocoFullReport/html public/coverage
+    - mv build/reports/tests/test public/unit-tests
+    - mv build/reports/integration-tests public/integration-tests
+    - mkdir -p public/checkstyle
+    - mv build/reports/checkstyle/main.html public/checkstyle/index.html
+  artifacts:
+    paths:
+      - build/libs
+      - build/publications
+      - public
+    reports:
+      junit: [ build/test-results/test/*.xml, build/test-results/integrationTest/*.xml ]
   only:
     - master

@@ -1,0 +1,47 @@
+plugins {
+    id 'java-library'
+    id 'org.proticity.gradle.proticity-java' version '0.1.4'
+}
+
+dependencies {
+    implementation 'io.projectreactor.netty:reactor-netty'
+    implementation 'io.projectreactor:reactor-core'
+    implementation 'org.slf4j:slf4j-api'
+    implementation 'io.micrometer:micrometer-core'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jdk8'
+    implementation 'com.google.code.findbugs:jsr305'
+}
+
+config {
+    info {
+        name = 'Reactive IRC Client'
+        description = "A reactive IRC client with support for IRCv3 and Twitch's TMI servers."
+        vendor = 'Proticity Cloud Project'
+        inceptionYear = '2019'
+        tags = [ 'irc', 'chat', 'twitch', 'streaming', 'live streaming', 'tmi', 'ircv3', 'reactive', 'reactor' ]
+
+        people {
+            person {
+                id = 'johnstewart'
+                name = 'John Stewart'
+                email = 'dev@charmedbaryon.tv'
+                roles = [ 'maintainer', 'developer', 'owner' ]
+                timezone = 'America/Los_Angeles'
+            }
+        }
+    }
+
+    licensing {
+        licenses {
+            license {
+                id = 'Apache-2.0'
+            }
+        }
+    }
+}
+
+javaModern {
+    tests.andIntegrationTests.useJUnitPlatform()
+}

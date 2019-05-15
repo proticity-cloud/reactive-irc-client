@@ -1,4 +1,26 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright 2019 John Stewart.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.proticity.irc.client.parser;
+
+import java.io.Serializable;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.proticity.irc.client.command.Capability;
 import org.proticity.irc.client.command.Channel;
@@ -29,31 +51,34 @@ import reactor.core.publisher.FluxSink;
 import reactor.util.annotation.NonNull;
 import reactor.util.annotation.Nullable;
 
-import java.io.Serializable;
-import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 public class IrcInput implements Serializable {
+    private static final long serialVersionUID = 0L;
+
     // Hostname pattern extends the standard by allowing underscrores, required for Twitch which forms a nickname-based
-    // hostname for hostname prefixes. Since nicknames can have underscores this means Twitch will form illegal hostnames.
-    private static final String HOSTNAME_PATTERN = "(?<host>[a-zA-Z0-9][a-zA-Z0-9\\-_]*(\\.[a-zA-Z0-9][a-zA-Z0-9\\-_]*)*)";
-    private static final String IPV4_PATTERN = "(?<ipv4>[0-9]?[0-9]?[0-9]\\.[0-9]?[0-9]?[0-9]\\.[0-9]?[0-9]?[0-9]\\.[0-9]?[0-9]?[0-9])";
+    // hostname for hostname prefixes. Since nicknames can have underscores this means Twitch will form illegal
+    // hostnames.
+    private static final String HOSTNAME_PATTERN =
+            "(?<host>[a-zA-Z0-9][a-zA-Z0-9\\-_]*(\\.[a-zA-Z0-9][a-zA-Z0-9\\-_]*)*)";
+    private static final String IPV4_PATTERN =
+            "(?<ipv4>[0-9]?[0-9]?[0-9]\\.[0-9]?[0-9]?[0-9]\\.[0-9]?[0-9]?[0-9]\\.[0-9]?[0-9]?[0-9])";
     private static final String IPV6_PATTERN = "(?<ipv6>123abc)"; // TODO: Proper IPv6 support.
     // The nickname pattern extends the standard by allowing the first character to be numeric, required by Twitch.
-    private static final String NICKNAME_PATTERN  = "(?<nick>[a-zA-Z\\[-`{-}0-9][a-zA-Z\\[-`{-}0-9\\-]*)";
+    private static final String NICKNAME_PATTERN = "(?<nick>[a-zA-Z\\[-`{-}0-9][a-zA-Z\\[-`{-}0-9\\-]*)";
     private static final String USER_PATTERN = "(?<user>[^ \0\r\n@]+)";
 
     private static final Pattern NICKNAME = Pattern.compile("^" + NICKNAME_PATTERN);
-    private static final Pattern CHANNEL = Pattern.compile("^(?<prefix>[#+&]|(![A-Z0-9]{5}))(?<name>[^ \0\r\n:,\u0007]+)");
+    private static final Pattern CHANNEL =
+            Pattern.compile("^(?<prefix>[#+&]|(![A-Z0-9]{5}))(?<name>[^ \0\r\n:,\u0007]+)");
     private static final Pattern NUMERIC_REPLY = Pattern.compile("^[0-9]{3}");
     private static final Pattern NONCRLF = Pattern.compile("^[^\r\n]*");
     private static final Pattern PARAM = Pattern.compile("^[^ \r\n:]+");
     private static final Pattern TAG_KEY = Pattern.compile("^[a-zA-Z0-9\\-]+");
     private static final Pattern TAG_VENDOR = Pattern.compile("^" + HOSTNAME_PATTERN + "/");
     private static final Pattern TAG_VALUE = Pattern.compile("^(\\\\[ ;\r\n\0]|[^ ;\r\n\0])*");
-    private static final Pattern SERVER_PREFIX = Pattern.compile("^" + HOSTNAME_PATTERN + "|" + IPV4_PATTERN + "|" + IPV6_PATTERN);
-    private static final Pattern NICK_PREFIX = Pattern.compile("^" + NICKNAME_PATTERN + "((!" + USER_PATTERN + ")?@(" + HOSTNAME_PATTERN + "|" + IPV4_PATTERN + "|" + IPV6_PATTERN +"))?");
+    private static final Pattern SERVER_PREFIX = Pattern.compile("^" + HOSTNAME_PATTERN + "|" + IPV4_PATTERN + "|" +
+            IPV6_PATTERN);
+    private static final Pattern NICK_PREFIX = Pattern.compile("^" + NICKNAME_PATTERN + "((!" + USER_PATTERN + ")?@(" +
+            HOSTNAME_PATTERN + "|" + IPV4_PATTERN + "|" + IPV6_PATTERN + "))?");
     private static final Pattern COMMAND = Pattern.compile("^[a-zA-Z0-9]+");
 
     private String input;
@@ -178,9 +203,9 @@ public class IrcInput implements Serializable {
 
     /**
      * Consume a capability.
-     *
-     *  Although not strictly defined as such, these use identical rules to tag keys, including the
-     *  vendor, and so these rules are reused.
+     * <p>
+     * Although not strictly defined as such, these use identical rules to tag keys, including the
+     * vendor, and so these rules are reused.
      *
      * @return A {@link Capability} representing the capability text.
      */
@@ -212,7 +237,7 @@ public class IrcInput implements Serializable {
 
     /**
      * Attempt to parse a tag's vendor.
-     *
+     * <p>
      * A vendor portion of a name is permitted in a tag key, but is optional.
      *
      * @return The vendor in the tag name if one is present.
@@ -240,7 +265,7 @@ public class IrcInput implements Serializable {
 
     /**
      * Consume the required spaces in the input.
-     *
+     * <p>
      * This is permissive in that multiple spaces may be consumed as a single delimiter, however at
      * least one is required.
      */
@@ -250,7 +275,7 @@ public class IrcInput implements Serializable {
 
     /**
      * Consume zero or more CRLF sequences.
-     *
+     * <p>
      * This can be used where a CRLF may appear, such as at the very start of an input or at the
      * end.
      *
@@ -266,7 +291,7 @@ public class IrcInput implements Serializable {
 
     /**
      * Consume zero or one (or more, it's all the same) EOFs.
-     *
+     * <p>
      * This is used to peek for the end of the sequence.
      *
      * @return Whether or not the parser is at the end of the input.
@@ -277,7 +302,7 @@ public class IrcInput implements Serializable {
 
     /**
      * Consume zero (or one, or more, it's all the same) EOFs.
-     *
+     * <p>
      * This will require the end of input and fail if the parser is elsewhere.
      */
     protected void eof() {
@@ -288,7 +313,7 @@ public class IrcInput implements Serializable {
 
     /**
      * Parse the message prefix.
-     *
+     * <p>
      * This can be awkward because it requires backtracking. There is ambiguous grammar here and we
      * want to prioritize a servername prefix over a nickname prefix when both are valid.
      *
@@ -329,7 +354,6 @@ public class IrcInput implements Serializable {
      * Peek at the next character without advancing the parser position.
      *
      * @param c The character to look for.
-     *
      * @return Whether the next character of the input is <code>c</code>.
      */
     protected boolean peek(char c) {

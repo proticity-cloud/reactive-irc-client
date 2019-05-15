@@ -1,4 +1,37 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright 2019 John Stewart.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.proticity.irc.client;
+
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.proticity.irc.client.command.Capability;
 import org.proticity.irc.client.command.InvalidCommand;
@@ -11,79 +44,68 @@ import org.proticity.irc.client.transport.Transport;
 import org.proticity.irc.client.transport.WebSocketTransport;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.util.annotation.NonNull;
-import reactor.util.annotation.Nullable;
-
-import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Provides a client for publish/subscribe messaging using IRCv3.
- *
+ * <p>
  * The IrcClient works at the application layer and runs on top of a generic transport. As the
  * IrcClient is reactive it uses Netty Reactor for the underlying connection. When created, a
  * Netty Reactor Connection instance can be provided to be used for networking.
- *
+ * <p>
  * Twitch exposes TMI over TCP (as an extended version of IRCv3) and over WebSocket. Either
  * connection type will work. Convenience methods are available for creating IrcClients with default
  * connections. When using Twitch as a server Twitch support should also be specifically enabled to
  * negotiate for Twitch's extended capabilities.
  */
+@ParametersAreNonnullByDefault
 public class IrcClient {
     private static final IrcParser PARSER = new IrcParser();
+
+    private static final char COLOR = (char) 27;
+
+    private static final int MODE_WALLOPS = 4;
+
+    private static final int MODE_INVISIBLE = 8;
 
     /**
      * A copy of the builder that was used to create the client.
      */
-    @NonNull
     private IrcClientBuilder builder;
 
     /**
      * A map of channels that have been joined to the channel information.
      */
-    @NonNull
     private Map<String, Boolean> channels = new ConcurrentHashMap<>();
 
     /**
      * The buffered writer for debug output.
      */
-    @Nullable
     private BufferedWriter bufferedDebugStreamWriter;
 
     /**
      * The output writer for the debug output.
      */
-    @Nullable
     private OutputStreamWriter debugStreamWriter;
 
     /**
      * The stream of inbound commands from the server.
      */
-    @NonNull
     private Flux<IrcCommand> inbound;
 
-    protected IrcClient(@NonNull IrcClientBuilder builder) {
-        if (builder == null) {
-            throw new IllegalArgumentException("Argument 'builder' cannot be null.");
-        }
-        this.builder = builder.clone();
+    protected IrcClient(final IrcClientBuilder builder) {
+        this.builder = new IrcClientBuilder(builder);
         if (builder.debugStream != null) {
             debugStreamWriter = new OutputStreamWriter(builder.debugStream, StandardCharsets.UTF_8);
             bufferedDebugStreamWriter = new BufferedWriter(debugStreamWriter);
+        }
+        if (builder.transport == null) {
+            throw new IllegalStateException("Transport has not been specified.");
         }
         inbound = builder.transport.receive().doOnNext(this::logInboundNext)
                 .flatMap(PARSER::messages).doOnNext(this::handleMessage);
         // If error suppression is enabled, ignore IrcParseException.
         if (builder.suppressParseErrors) {
-            inbound = inbound.onErrorContinue(err -> err instanceof IrcParseException,
-                    (err, input) -> { });
+            inbound = inbound.onErrorContinue(err -> err instanceof IrcParseException, (err, input) -> { });
         }
         connect();
     }
@@ -91,10 +113,10 @@ public class IrcClient {
     protected void connect() {
         int modes = 0;
         if (builder.receiveWallops) {
-            modes |= 4;
+            modes |= MODE_WALLOPS;
         }
         if (builder.invisible) {
-            modes |= 8;
+            modes |= MODE_INVISIBLE;
         }
 
         var capsMono = sendThen(Flux.fromIterable(builder.capabilities).map(cap -> "CAP REQ :" + cap.toString()));
@@ -113,13 +135,13 @@ public class IrcClient {
      *
      * @param message The server message to log.
      */
-    protected void logInboundNext(@NonNull String message) {
+    protected void logInboundNext(String message) {
         if (bufferedDebugStreamWriter == null) {
             return;
         }
         message = Instant.now().toString() + " < " + message;
         if (builder.colorizedDebug) {
-            message = (char) 27 + "[32m" + message + (char) 27 + "[39m";
+            message = (char) COLOR + "[32m" + message + (char) COLOR + "[39m";
         }
         try {
             bufferedDebugStreamWriter.write(message, 0, message.length());
@@ -130,13 +152,13 @@ public class IrcClient {
         }
     }
 
-    protected void logOutboundNext(@NonNull String message) {
+    protected void logOutboundNext(String message) {
         if (bufferedDebugStreamWriter == null) {
             return;
         }
         message = Instant.now().toString() + " >> " + message;
         if (builder.colorizedDebug) {
-            message = (char) 27 + "[34m" + message + (char) 27 + "[39m";
+            message = (char) COLOR + "[34m" + message + (char) COLOR + "[39m";
         }
         try {
             bufferedDebugStreamWriter.write(message, 0, message.length());
@@ -149,7 +171,7 @@ public class IrcClient {
 
     /**
      * Close the client.
-     *
+     * <p>
      * This is a blocking call which will not return until the connection is closed. For a
      * non-blocking alternative use {@link IrcClient#dispose()}.
      */
@@ -163,12 +185,17 @@ public class IrcClient {
      * @return A {@link Mono} for the operation. A subscription to the value is required for
      * the disposal operation to be emitted.
      */
-    @NonNull
     public Mono<Void> dispose() {
         return builder.transport.dispose().doOnNext(v -> {
             if (bufferedDebugStreamWriter != null) {
                 try {
                     bufferedDebugStreamWriter.close();
+                } catch (IOException e) {
+                    // TODO: Handle
+                }
+            }
+            if (debugStreamWriter != null) {
+                try {
                     debugStreamWriter.close();
                 } catch (IOException e) {
                     // TODO: Handle
@@ -182,19 +209,18 @@ public class IrcClient {
      *
      * @return The commands coming from the server.
      */
-    @NonNull
     public Flux<IrcCommand> commands() {
         return inbound;
     }
 
     /**
      * The built in command handler, where the client itself handles routine tasks.
-     *
+     * <p>
      * This primarily handles PING commands to prevent disconnection.
      *
      * @param command The command received from the server.
      */
-    protected void handleMessage(@NonNull IrcCommand command) {
+    protected void handleMessage(final IrcCommand command) {
         if (command instanceof PingCommand) {
             sendThen(Flux.just("PONG :" + ((PingCommand) command).getHost()));
         }
@@ -202,32 +228,29 @@ public class IrcClient {
 
     /**
      * Produces a publisher for the results of emitting commands to the server.
-     *
+     * <p>
      * The {@link Mono} produced here represents the event of completion of the
      * sending of all commands. A subscription is required to actually emit
      * the sending of commands, i.e. none are sent until a subscription is made.
      *
      * @param commands The commands to issue.
-     *
      * @return A {@link Mono} for consuming send completion.
      */
-    @NonNull
-    public Mono<Void> sendThen(@NonNull Flux<String> commands) {
+    public Mono<Void> sendThen(final Flux<String> commands) {
         return builder.transport.send(commands.doOnNext(this::logOutboundNext)).then();
     }
 
     /**
      * Asynchronously sends commands to the server.
-     *
+     * <p>
      * This is equivalent to calling {@link IrcClient#sendThen(Flux)} and then
      * subscribing, so it therefore will actually issue the commands.
      *
      * @param commands The commands to issue.
-     *
      * @return A {@link CompletableFuture} which can be used to determine when
      * the commands have been sent.
      */
-    public CompletableFuture<Void> send(@NonNull Flux<String> commands) {
+    public CompletableFuture<Void> send(final Flux<String> commands) {
         return sendThen(commands).toFuture();
     }
 
@@ -236,7 +259,7 @@ public class IrcClient {
      *
      * @param commands The commands to send.
      */
-    public void sendNow(@NonNull Flux<String> commands) {
+    public void sendNow(final Flux<String> commands) {
         sendThen(commands).block();
     }
 
@@ -245,9 +268,9 @@ public class IrcClient {
      * timeout period is exhausted.
      *
      * @param commands The commands to send.
-     * @param timeout The timeout period after which the method will stop blocking.
+     * @param timeout  The timeout period after which the method will stop blocking.
      */
-    public void sendNow(@NonNull Flux<String> commands, @NonNull Duration timeout) {
+    public void sendNow(final Flux<String> commands, final Duration timeout) {
         sendThen(commands).block(timeout);
     }
 
@@ -255,23 +278,22 @@ public class IrcClient {
      * Normalizes a channel name for consistency.
      *
      * @param channel A denormalized channel name.
-     *
      * @return A normalized channel name (always preceded with a '#' character and in all lower
      * case).
      */
-    private static String normalizeChannelName(@NonNull String channel) {
+    private static String normalizeChannelName(String channel) {
         if (channel == null) {
             throw new IllegalArgumentException("Argument 'channel' cannot be null.");
         }
         if (!channel.startsWith("#")) {
             channel = "#" + channel;
         }
-        return channel.toLowerCase();
+        return channel.toLowerCase(Locale.ROOT);
     }
 
     /**
      * Join a new channel.
-     *
+     * <p>
      * This will join the given channel if it is not already joined. The return value indicates if
      * the join operation made a change or if the channel was already joined.
      *
@@ -300,7 +322,8 @@ public class IrcClient {
     /**
      * A builder for new instances of the {@link IrcClient}.
      */
-    public static class IrcClientBuilder implements Cloneable {
+    @ParametersAreNonnullByDefault
+    public static class IrcClientBuilder {
         /**
          * The debugging {@link OutputStream} to use, if any.
          */
@@ -356,33 +379,28 @@ public class IrcClient {
         protected IrcClientBuilder() {
         }
 
-        @NonNull
-        @Override
-        public final IrcClientBuilder clone() {
-            try {
-                //var builder = new IrcClientBuilder();
-                var builder = (IrcClientBuilder) super.clone();
-                builder.receiveWallops = receiveWallops;
-                builder.invisible = invisible;
-                builder.nickname = nickname;
-                builder.capabilities = new HashSet<>(capabilities);
-                builder.colorizedDebug = colorizedDebug;
-                builder.debugStream = debugStream;
-                builder.transport = transport;
-                builder.user = user;
-                builder.password = password;
-                builder.realName = realName;
-                builder.suppressParseErrors = suppressParseErrors;
-                return builder;
-            } catch (CloneNotSupportedException e) {
-                // This case will never happen.
-                throw new RuntimeException(e);
-            }
+        /**
+         * Creates a new {@link IrcClientBuilder} which is a copy of an existing one.
+         *
+         * @param builder the existing builder to copy.
+         */
+        public IrcClientBuilder(final IrcClientBuilder builder) {
+            receiveWallops = builder.receiveWallops;
+            invisible = builder.invisible;
+            nickname = builder.nickname;
+            capabilities = new HashSet<>(builder.capabilities);
+            colorizedDebug = builder.colorizedDebug;
+            debugStream = builder.debugStream;
+            transport = builder.transport;
+            user = builder.user;
+            password = builder.password;
+            realName = builder.realName;
+            suppressParseErrors = builder.suppressParseErrors;
         }
 
         /**
          * Enables debugging output for the client.
-         *
+         * <p>
          * If not otherwise specified, sets the output to be on {@link System#out}.
          *
          * @return The instance of the {@link IrcClientBuilder}.
@@ -397,7 +415,6 @@ public class IrcClient {
          * @param enabled <code>true</code> to enable debug output, or <code>false</code> to disable
          *                it. If not already explicitly set enabling debugging will default to
          *                outputting to {@link System#out}.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
         public IrcClientBuilder debug(boolean enabled) {
@@ -407,11 +424,10 @@ public class IrcClient {
         /**
          * Control whether debug output for the client is enabled.
          *
-         * @param enabled <code>true</code> to enable debug output, or <code>false</code> to disable
-         *                it. If not already explicitly set enabling debugging will default to
-         *                outputting to {@link System#out}.
+         * @param enabled  <code>true</code> to enable debug output, or <code>false</code> to disable
+         *                 it. If not already explicitly set enabling debugging will default to
+         *                 outputting to {@link System#out}.
          * @param colorize Whether or not to colorize the debug output.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
         public IrcClientBuilder debug(boolean enabled, boolean colorize) {
@@ -424,7 +440,6 @@ public class IrcClient {
          *
          * @param outputStream The output stream to use for debug output. If none is provided
          *                     debugging will be disabled.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
         public IrcClientBuilder debug(@Nullable OutputStream outputStream) {
@@ -434,9 +449,10 @@ public class IrcClient {
 
         /**
          * Control whether debug output for the client is enabled.
+         *
          * @param outputStream The output stream to use for debug output. If none is provided
          *                     debugging will be disabled.
-         * @param colorize Whether or not to colorize the debug output.
+         * @param colorize     Whether or not to colorize the debug output.
          * @return The instance of the {@link IrcClientBuilder}.
          */
         public IrcClientBuilder debug(@Nullable OutputStream outputStream,
@@ -447,7 +463,7 @@ public class IrcClient {
 
         /**
          * Enables suppression of parse errors on commands from the server.
-         *
+         * <p>
          * If enabled, this option will prevent errors from being emitted for parse exceptions from
          * {@link IrcClient#commands()}. Instead an {@link InvalidCommand} will be
          * automatically substituted for such errors in the command stream.
@@ -460,7 +476,7 @@ public class IrcClient {
 
         /**
          * Control whether to suppress parse errors on commands from the server.
-         *
+         * <p>
          * If enabled, this option will prevent errors from being emitted for parse exceptions from
          * {@link IrcClient#commands()}. Instead an {@link InvalidCommand} will be
          * automatically substituted for such errors in the command stream.
@@ -477,10 +493,9 @@ public class IrcClient {
          * Provide a user to be used by the bot.
          *
          * @param user The user to use.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
-        public IrcClientBuilder user(@NonNull String user) {
+        public IrcClientBuilder user(final String user) {
             this.user = user;
             return this;
         }
@@ -489,10 +504,9 @@ public class IrcClient {
          * Provide a nickname for the client to use.
          *
          * @param nickname The client's nickname.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
-        public IrcClientBuilder nickname(@NonNull String nickname) {
+        public IrcClientBuilder nickname(final String nickname) {
             this.nickname = nickname;
             return this;
         }
@@ -501,10 +515,9 @@ public class IrcClient {
          * Provide a real name for the client to use.
          *
          * @param realName The client's real name.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
-        public IrcClientBuilder realName(@NonNull String realName) {
+        public IrcClientBuilder realName(final String realName) {
             this.realName = realName;
             return this;
         }
@@ -513,7 +526,6 @@ public class IrcClient {
          * Provide a password to be used by the bot for login.
          *
          * @param password The password to use for login.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
         public IrcClientBuilder password(String password) {
@@ -525,7 +537,6 @@ public class IrcClient {
          * Specifies a custom {@link Transport} to use to connect.
          *
          * @param transport The {@link Transport} to use to connect.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
         public IrcClientBuilder transport(Transport transport) {
@@ -537,7 +548,6 @@ public class IrcClient {
          * Use a default WebSocket/TLS transport to a given URI on default port 443.
          *
          * @param uri The URI on which to connect.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
         public IrcClientBuilder webSocket(String uri) {
@@ -548,9 +558,8 @@ public class IrcClient {
         /**
          * Use a default WebSocket/TLS transport to a given URI and port.
          *
-         * @param uri The URI to which to connect.
+         * @param uri  The URI to which to connect.
          * @param port The port on which to connect.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
         public IrcClientBuilder webSocket(String uri, int port) {
@@ -562,7 +571,6 @@ public class IrcClient {
          * Use a default TCP/TLS transport to a given host using default port 6697.
          *
          * @param host The host to which to connect.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
         public IrcClientBuilder tcp(String host) {
@@ -575,7 +583,6 @@ public class IrcClient {
          *
          * @param host The host to which to connect.
          * @param port The port on which to connect.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
         public IrcClientBuilder tcp(String host, int port) {
@@ -585,13 +592,13 @@ public class IrcClient {
 
         /**
          * Enable Twitch IRC features (TMI).
-         *
+         * <p>
          * Twitch uses the capabilities system to negotiate support for additional Twitch features.
          * If Twitch support is enabled these capabilities will be negotiated automatically and
          * Twitch features will be supported (examples are that Twitch will provide it's tags as
          * IRCv3 tags, and it will send WHISPER commands, which this client treats as a subclass
          * of user-to-user PRIVMSG commands).
-         *
+         * <p>
          * If no transport has been set this will cause it to default to Twitch's TMI servers
          * using a secure WebSocket connection.
          *
@@ -625,10 +632,9 @@ public class IrcClient {
          * connection is established.
          *
          * @param capability The capability to add.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
-        public IrcClientBuilder capability(@NonNull Capability capability) {
+        public IrcClientBuilder capability(final Capability capability) {
             if (capabilities == null) {
                 capabilities = new HashSet<>();
             }
@@ -641,10 +647,9 @@ public class IrcClient {
          * connection is established.
          *
          * @param capability The capability to add.
-         *
          * @return The instance of the {@link IrcClientBuilder}.
          */
-        public IrcClientBuilder capability(@NonNull String capability) {
+        public IrcClientBuilder capability(final String capability) {
             return capability(new Capability(capability));
         }
 
@@ -668,7 +673,7 @@ public class IrcClient {
 
         /**
          * Produce the {@link IrcClient} for connection and use.
-         *
+         * <p>
          * As the client is returned in a {@link Mono} the connection is not established until
          * the result is subscribed to.
          *
