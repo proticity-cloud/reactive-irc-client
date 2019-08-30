@@ -1,4 +1,6 @@
 # Reactive IRC Client
+[![CircleCI](https://circleci.com/gh/proticity-cloud/reactive-irc-client.svg?style=svg&circle-token=20aa6d32010dec02182305081db76cbf244bdef7)](https://circleci.com/gh/proticity-cloud/reactive-irc-client) [![Sonarcloud Status](https://sonarcloud.io/api/project_badges/measure?project=org.proticity:reactive-irc-client&metric=alert_status)](https://sonarcloud.io/dashboard?id=org.proticity:reactive-irc-client) [![codecov](https://codecov.io/gh/proticity-cloud/reactive-irc-client/branch/master/graph/badge.svg)](https://codecov.io/gh/proticity-cloud/reactive-irc-client)
+
 This library is a reactive client for IRC and IRCv3/TMI (Twitch) extensions over TCP and WebSocket. It uses the Reactor
 library for functional reactive streams to achieve very high throughput and non-blocking semantics.
 
