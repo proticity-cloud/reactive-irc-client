@@ -1,6 +1,6 @@
 plugins {
     id 'java-library'
-    id 'org.proticity.gradle.proticity-java' version '0.1.4'
+    id 'org.proticity.gradle.proticity-java' version '0.1.9'
 }
 
 dependencies {
@@ -21,6 +21,11 @@ config {
         vendor = 'Proticity Cloud Project'
         inceptionYear = '2019'
         tags = [ 'irc', 'chat', 'twitch', 'streaming', 'live streaming', 'tmi', 'ircv3', 'reactive', 'reactor' ]
+
+        organization {
+            name = 'proticity-cloud'
+            url = 'https://www.proticity.org'
+        }
 
         people {
             person {

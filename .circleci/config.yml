@@ -1,0 +1,83 @@
+version: 2.1
+
+orbs:
+  codecov: codecov/codecov@1.0.5
+
+job-template: &job-template
+  working_directory: ~/reactive-irc-client
+  environment:
+    JVM_OPTS: -Xmx3200m
+    TERM: dumb
+
+jobs:
+  build:
+    <<: *job-template
+    docker:
+      - image: openjdk:11-jdk
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - cache-{{ checksum "build.gradle" }}-{{ checksum "settings.gradle" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}
+      - run:
+          name: Assemble
+          command: ./gradlew -i -S downloadLicenses assemble
+      - save_cache:
+          paths:
+            - ~/.gradle
+            - ~/.m2/repository
+          key: cache-{{ checksum "build.gradle" }}-{{ checksum "settings.gradle" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - build
+  verify:
+    <<: *job-template
+    docker:
+      - image: openjdk:11-jdk
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - cache-{{ checksum "build.gradle" }}-{{ checksum "settings.gradle" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}
+      - attach_workspace:
+          at: ./
+      - run:
+          name: SonarCloud Scan
+          command: ./gradlew -i -S sonarqube
+  test:
+    <<: *job-template
+    docker:
+      - image: openjdk:11-jdk
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - cache-{{ checksum "build.gradle" }}-{{ checksum "settings.gradle" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}
+      - attach_workspace:
+          at: ./
+      - run:
+          name: Run Tests
+          command: ./gradlew -i -S allTests jacocoTestReport
+      - store_test_results:
+          path: build/test-results
+      - store_artifacts:
+          path: build/test-results/test
+      - codecov/upload:
+          file: build/reports/jacoco/test/jacocoTestReport.xml
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - build
+
+workflows:
+  version: 2.1
+  ci:
+    jobs:
+      - build
+      - test:
+          requires:
+            - build
+      - verify:
+          requires:
+            - test
